@@ -14,6 +14,7 @@
 #include <linux/cpufreq.h>
 #include <linux/cpumask.h>
 #include <linux/cpu.h>
+#include <linux/workqueue.h>
 
 /*must define,or build error*/
 #define CREATE_TRACE_POINTS
@@ -22,7 +23,12 @@
 #define TEST_DRIVER_DELAY          (50 * HZ)
 #define THREAD_BIND_CPU             (0)
 
+static struct work_struct test_work;
+
+
+
 struct timer_list test_timer;
+
 
 struct test_data {
     unsigned long num;
@@ -33,6 +39,16 @@ struct test_data {
 struct test_data *global;
 
 static unsigned long i = 0;
+static unsigned int test_flag = 0;
+
+static void work_handler(struct work_struct *data)
+{
+    int i = 0;
+    if(test_flag)
+       mdelay(200);
+
+}
+
 
 static void test_driver_func(unsigned long data)
 {
@@ -43,12 +59,15 @@ static void test_driver_func(unsigned long data)
     global->cpu_max_freq = cpufreq_quick_get_max((i + 1) % NR_CPUS);
     trace_get_test_driver_data(global->num, global->cpu_freq, global->cpu_max_freq);
     /*dynamic modify timer expires time*/
-    expires = jiffies + msecs_to_jiffies(2000 + i * 200);
+    expires = jiffies + msecs_to_jiffies(2000);
     mod_timer(&test_timer, expires);
     if(i > 100)
         i = 0;
     i++;
+    test_flag = 1;
+    schedule_work(&test_work);
 }
+
 
 static int __init test_driver_init(void)
 {
@@ -62,6 +81,9 @@ static int __init test_driver_init(void)
         printk(KERN_INFO "alloc space is fail\n");
         return -1;
     }
+
+    INIT_WORK(&test_work, work_handler);
+    schedule_work(&test_work);
     return 0;
 }
 
